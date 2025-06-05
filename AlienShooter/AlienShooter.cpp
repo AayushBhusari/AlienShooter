@@ -10,10 +10,7 @@ public:
     Vector2 position = { 600, 400 };
 
     void Shoot(float angle, vector<Vector2>& bulletPositions, vector<Vector2>& bulletVelocities) {
-        // Direction the bullet travels
         Vector2 direction = { cosf(angle), sinf(angle) };
-
-        // Offset to the muzzle from center (50 pixels to the right)
         float muzzleDistance = 50.0f;
         Vector2 offset = { cosf(angle) * muzzleDistance, sinf(angle) * muzzleDistance };
 
@@ -28,16 +25,26 @@ int main() {
 
     Guy guy;
     float speed = 200.0f;
-    Texture2D chillGuy = LoadTexture("assets/chill-guy-gun.png");
-    chillGuy.height = 100 / 1.2;
-    chillGuy.width = 100 / 1.2;
 
+    // Load textures
+    Texture2D chillGuyRight = LoadTexture("assets/shooting-right.png");
+
+    // Flip the right-facing image to create the left-facing one
+    Image img = LoadImage("assets/shooting-right.png");
+    ImageFlipHorizontal(&img);
+    Texture2D chillGuyLeft = LoadTextureFromImage(img);
+    UnloadImage(img);
+
+    chillGuyRight.height = 100 / 1.2;
+    chillGuyRight.width = 100 / 1.2;
+    chillGuyLeft.height = 100 / 1.2;
+    chillGuyLeft.width = 100 / 1.2;
 
     vector<Vector2> bulletPositions;
     vector<Vector2> bulletVelocities;
 
-    float shootCooldown = 0.3f; // Seconds between shots
-    float shootTimer = 0.0f;    // Time left until the next shot
+    float shootCooldown = 0.3f;
+    float shootTimer = 0.0f;
 
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
@@ -57,7 +64,7 @@ int main() {
             shootTimer -= deltaTime;
         }
 
-        // Handle shooting
+        // Shooting
         if (shootTimer <= 0.0f && IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
             guy.Shoot(angle, bulletPositions, bulletVelocities);
             shootTimer = shootCooldown;
@@ -84,16 +91,27 @@ int main() {
             }
         }
 
-        // Draw everything
+        // Drawing
         BeginDrawing();
         ClearBackground(BLACK);
 
-        // Draw rotated chillGuy centered on player position
-        Rectangle srcRect = { 0, 0, (float)chillGuy.width, (float)chillGuy.height };
-        Vector2 origin = { chillGuy.width / 2.0f, chillGuy.height / 2.0f };
-        DrawTexturePro(chillGuy, srcRect, { guy.position.x, guy.position.y, (float)chillGuy.width, (float)chillGuy.height }, origin, angleDegrees, WHITE);
+        // Determine facing direction
+        bool facingLeft = mousePos.x < guy.position.x;
+        Texture2D currentTexture = facingLeft ? chillGuyLeft : chillGuyRight;
 
-        // Draw bullets
+        // Adjust angle to prevent upside-down when facing left
+        float adjustedAngle = facingLeft ? angleDegrees + 180.0f : angleDegrees;
+
+        Rectangle srcRect = { 0, 0, (float)currentTexture.width, (float)currentTexture.height };
+        Vector2 origin = { currentTexture.width / 2.0f, currentTexture.height / 2.0f };
+
+        DrawTexturePro(currentTexture,
+            srcRect,
+            { guy.position.x, guy.position.y, (float)currentTexture.width, (float)currentTexture.height },
+            origin,
+            adjustedAngle,
+            WHITE);
+
         for (auto& bullet : bulletPositions) {
             DrawCircleV(bullet, 5, RED);
         }
@@ -101,7 +119,8 @@ int main() {
         EndDrawing();
     }
 
-    UnloadTexture(chillGuy);
+    UnloadTexture(chillGuyRight);
+    UnloadTexture(chillGuyLeft);
     CloseWindow();
     return 0;
 }

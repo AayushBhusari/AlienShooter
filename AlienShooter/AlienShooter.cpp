@@ -28,6 +28,7 @@ int main() {
 
     // Load textures
     Texture2D chillGuyRight = LoadTexture("assets/shooting-right.png");
+    Texture2D background = LoadTexture("assets/bg.png");
 
     // Flip the right-facing image to create the left-facing one
     Image img = LoadImage("assets/shooting-right.png");
@@ -35,10 +36,10 @@ int main() {
     Texture2D chillGuyLeft = LoadTextureFromImage(img);
     UnloadImage(img);
 
-    chillGuyRight.height = 100 / 1.2;
-    chillGuyRight.width = 100 / 1.2;
-    chillGuyLeft.height = 100 / 1.2;
-    chillGuyLeft.width = 100 / 1.2;
+    chillGuyRight.height = 120;
+    chillGuyRight.width = 120;
+    chillGuyLeft.height = 120;
+    chillGuyLeft.width = 120;
 
     vector<Vector2> bulletPositions;
     vector<Vector2> bulletVelocities;
@@ -94,6 +95,11 @@ int main() {
         // Drawing
         BeginDrawing();
         ClearBackground(BLACK);
+        Rectangle src = { 0, 0, (float)background.width, (float)background.height };
+        Rectangle dest = { 0, 0, 1200, 800 };  // Match your window size
+        Vector2 bgOrigin = { 0, 0 };
+
+        DrawTexturePro(background, src, dest, bgOrigin, 0.0f, WHITE);
 
         // Determine facing direction
         bool facingLeft = mousePos.x < guy.position.x;
@@ -121,6 +127,8 @@ int main() {
 
     UnloadTexture(chillGuyRight);
     UnloadTexture(chillGuyLeft);
+    UnloadTexture(background);
+
     CloseWindow();
     return 0;
 }

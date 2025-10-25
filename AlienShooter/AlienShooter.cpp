@@ -240,13 +240,18 @@ int main()
 
                 waveCountdown -= deltaTime;
 
-                // Draw everything
                 BeginDrawing();
                 ClearBackground(BLACK);
+
+                // Background
                 DrawTextureEx(background, { 0, 0 }, 0.0f,
                     (float)GetScreenWidth() / background.width, WHITE);
 
+                // --- Draw UI (wave & score) ---
+                DrawText(TextFormat("Wave: %d", currentWave), 20, 20, 30, YELLOW);
+                DrawText(TextFormat("Score: %d", score), 20, 60, 30, WHITE);
 
+                // --- Draw player ---
                 bool facingLeft = mousePos.x < guy.position.x;
                 Texture2D currentTexture = facingLeft ? chillGuyLeft : chillGuyRight;
                 float adjustedAngle = facingLeft ? angleDegrees + 180.0f : angleDegrees;
@@ -257,10 +262,12 @@ int main()
                     adjustedAngle,
                     WHITE);
 
+                // --- Draw enemies (visible preview) ---
                 for (auto& enemy : enemies)
                     enemy.Draw(enemyTexture, guy.position);
 
-                DrawText(TextFormat("%.0f", ceil(waveCountdown)), 600, 400, 100, YELLOW);
+                // --- Countdown text ---
+                DrawText(TextFormat("%.0f", ceil(waveCountdown)), 580, 360, 120, YELLOW);
 
                 EndDrawing();
 
@@ -393,6 +400,7 @@ int main()
             EndDrawing();
         }
         break;
+
 
         case GAMEOVER:
         {

@@ -113,13 +113,36 @@ int main() {
     vector<Enemy> enemies;
     auto spawnWave = [&](int wave) {
         int enemyCount = 3 + wave * 2; // Increase number of enemies per wave
+        float minSpawnDistance = 200.0f; // Minimum distance from player
+
         for (int i = 0; i < enemyCount; ++i) {
-            enemies.emplace_back(enemyTexture);
+            Enemy enemy(enemyTexture);
+
+            // Keep generating a position until it's far enough from the player
+            while (Vector2Distance(enemy.position, guy.position) < minSpawnDistance) {
+                enemy.position.x = static_cast<float>(GetRandomValue(100, GetScreenWidth() - 100));
+                enemy.position.y = static_cast<float>(GetRandomValue(100, GetScreenHeight() - 100));
+            }
+
+            enemies.push_back(enemy);
         }
         };
 
+
     // Initial wave
     spawnWave(currentWave);
+
+	// Load sound
+    InitAudioDevice();
+    Sound enemyDieSFX = LoadSound("assets/enemy-die.mp3");
+	Sound shootSFX = LoadSound("assets/player-shoot.mp3");
+    Sound playerDieSFX = LoadSound("assets/player-die.mp3");
+    Sound bgSound = LoadSound("assets/game-bg.mp3");
+
+    SetSoundVolume(bgSound, 0.5f);  // optional
+    PlaySound(bgSound);
+
+
 
 
     while (!WindowShouldClose()) {
@@ -143,8 +166,10 @@ int main() {
         // Shooting
         if (shootTimer <= 0.0f && IsMouseButtonDown(MOUSE_LEFT_BUTTON)) {
             guy.Shoot(angle, bulletPositions, bulletVelocities);
+            PlaySound(shootSFX);
             shootTimer = shootCooldown;
         }
+
 
         // Wrap-around
         if (guy.position.x < 0) guy.position.x = GetScreenWidth();
@@ -168,13 +193,27 @@ int main() {
         }
 
         // ------------------------
-        // Check Bullet-Enemy Collision & Remove
-        // ------------------------
+// Check Bullet-Enemy Collision & Remove
+// ------------------------
         for (int i = bulletPositions.size() - 1; i >= 0; --i) {
             bool hit = false;
             for (int j = enemies.size() - 1; j >= 0; --j) {
                 float enemyRadius = (enemyTexture.width * enemies[j].scale) / 2.5f;
+
                 if (CheckCollisionCircles(bulletPositions[i], 5.0f, enemies[j].position, enemyRadius)) {
+                    // ✅ Play sound
+                    PlaySound(enemyDieSFX);
+
+                    // ✅ Add particle burst (simple visual effect)
+                    for (int k = 0; k < 10; ++k) {
+                        Vector2 particlePos = enemies[j].position;
+                        Vector2 velocity = {
+                            (float)GetRandomValue(-100, 100) / 100.0f,
+                            (float)GetRandomValue(-100, 100) / 100.0f
+                        };
+                        DrawCircleV(Vector2Add(particlePos, Vector2Scale(velocity, 20)), 3, ORANGE);
+                    }
+
                     enemies.erase(enemies.begin() + j);  // Remove enemy
                     hit = true;
                     break;
@@ -185,6 +224,7 @@ int main() {
                 bulletVelocities.erase(bulletVelocities.begin() + i);
             }
         }
+
 
         // ------------------------
 // Wave Check Logic
@@ -240,10 +280,19 @@ int main() {
         // ------------------------
         for (auto& enemy : enemies) {
             enemy.Draw(enemyTexture, guy.position);
-           enemy.MoveTowards(guy.position, deltaTime, enemySpeed);  // [NEW] Move enemy toward player
-            
+            enemy.MoveTowards(guy.position, deltaTime, enemySpeed);
+
+            // Optional: debug circle
             DrawCircleLines((int)enemy.position.x, (int)enemy.position.y, 32.0f, GREEN);
+
+            // ✅ Player collision check
+            if (CheckCollisionCircles(enemy.position, 25.0f, guy.position, 30.0f)) {
+                PlaySound(playerDieSFX);
+                // Optionally handle player respawn or game over
+                //reset here
+            }
         }
+
 
 
 
@@ -255,6 +304,12 @@ int main() {
     UnloadTexture(chillGuyLeft);
     UnloadTexture(background);
     UnloadTexture(enemyTexture);
+    UnloadSound(enemyDieSFX);
+    UnloadSound(shootSFX);
+    UnloadSound(playerDieSFX);
+    UnloadSound(bgSound);
+    CloseAudioDevice();
+
 
     CloseWindow();
     return 0;

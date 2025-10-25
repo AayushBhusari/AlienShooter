@@ -74,6 +74,7 @@ enum GameState
 {
     MENU,
     GAMEPLAY,
+    GAMEOVER,
     EXIT
 };
 
@@ -369,12 +370,13 @@ int main()
 
         case EXIT:
         {
-            // Stop audio if needed
+            /*// Stop audio if needed
             StopSound(bgSound);
             StopSound(menuMusic);
             // Exit the loop safely
             CloseWindow();
-            CloseAudioDevice();
+            CloseAudioDevice();*/
+            currentState = EXIT;
         }
         break;
         }
@@ -393,3 +395,4 @@ int main()
 
     return 0;
 }
+

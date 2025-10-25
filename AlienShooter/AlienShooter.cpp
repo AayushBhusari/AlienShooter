@@ -31,39 +31,42 @@ public:
     Vector2 position;
     float speed;
     float scale = 0.3f;
+    float hitboxWidthFactor = 0.5f;  // Adjust width
+    float hitboxHeightFactor = 0.7f; // Adjust height
+    Rectangle hitbox;
+
     Enemy(Texture2D& texture)
     {
         position.x = static_cast<float>(GetRandomValue(100, GetScreenWidth() - 100));
         position.y = static_cast<float>(GetRandomValue(100, GetScreenHeight() - 100));
         speed = static_cast<float>(GetRandomValue(50, 150));
+
+        UpdateHitbox(texture);
+    }
+
+    void UpdateHitbox(Texture2D& texture)
+    {
+        float width = texture.width * scale * hitboxWidthFactor;
+        float height = texture.height * scale * hitboxHeightFactor;
+        hitbox = { position.x - width / 2, position.y - height / 2, width, height };
     }
 
     void Draw(Texture2D& texture, Vector2 playerPos)
     {
-        // Determine if the player is to the right of the enemy
+        UpdateHitbox(texture);
+
         bool facingRight = playerPos.x > position.x;
 
-        // Source rectangle: defines which part of the texture to draw
         Rectangle sourceRec = { 0.0f, 0.0f, (float)texture.width, (float)texture.height };
+        if (facingRight) sourceRec.width *= -1;
 
-        // Flip horizontally if facing right (since texture faces left by default)
-        if (facingRight)
-        {
-            sourceRec.width *= -1;
-        }
-
-        // Destination rectangle: where to draw on the screen and its size
-        Rectangle destRec = {
-            position.x,
-            position.y,
-            texture.width * scale,
-            texture.height * scale };
-
-        // Origin: the center of the sprite (so flipping looks natural)
+        Rectangle destRec = { position.x, position.y, texture.width * scale, texture.height * scale };
         Vector2 origin = { texture.width * scale / 2, texture.height * scale / 2 };
 
-        // Draw the texture with flipping
         DrawTexturePro(texture, sourceRec, destRec, origin, 0.0f, WHITE);
+
+        // Debug: Draw hitbox
+        DrawRectangleLines((int)hitbox.x, (int)hitbox.y, (int)hitbox.width, (int)hitbox.height, RED);
     }
 
     void MoveTowards(Vector2 target, float deltaTime, float moveSpeed)
@@ -72,6 +75,7 @@ public:
         position = Vector2Add(position, Vector2Scale(direction, moveSpeed * deltaTime));
     }
 };
+
 
 enum GameState { MENU, GAMEPLAY, GAMEOVER, EXIT };
 
@@ -254,13 +258,14 @@ int main()
             }
 
             // Bullet-enemy collision
+           // Bullet-enemy collision (rectangle version)
             for (int i = bulletPositions.size() - 1; i >= 0; --i)
             {
                 bool hit = false;
                 for (int j = enemies.size() - 1; j >= 0; --j)
                 {
-                    float enemyRadius = (enemyTexture.width * enemies[j].scale) / 2.5f;
-                    if (CheckCollisionCircles(bulletPositions[i], 5.0f, enemies[j].position, enemyRadius))
+                    Rectangle bulletRect = { bulletPositions[i].x - 2.5f, bulletPositions[i].y - 2.5f, 5, 5 };
+                    if (CheckCollisionRecs(bulletRect, enemies[j].hitbox))
                     {
                         PlaySound(enemyDieSFX);
                         score++;
@@ -275,6 +280,7 @@ int main()
                     bulletVelocities.erase(bulletVelocities.begin() + i);
                 }
             }
+
 
             // Enemies move & check collision
             for (auto& e : enemies)
@@ -340,14 +346,21 @@ int main()
                 enemy.Draw(enemyTexture, guy.position);
                 enemy.MoveTowards(guy.position, deltaTime, enemySpeed);
 
-                DrawCircleLines((int)enemy.position.x, (int)enemy.position.y, 32.0f, GREEN);
+                //// Debug: show hitbox
+                //DrawRectangleLines(
+                //    (int)enemy.hitbox.x,
+                //    (int)enemy.hitbox.y,
+                //    (int)enemy.hitbox.width,
+                //    (int)enemy.hitbox.height,
+                //    RED
+                //);
 
                 // Player collision check
-                if (CheckCollisionCircles(enemy.position, 25.0f, guy.position, 30.0f))
+                Rectangle playerRect = { guy.position.x - 30, guy.position.y - 30, 60, 60 };
+                if (CheckCollisionRecs(playerRect, enemy.hitbox))
                 {
                     PlaySound(playerDieSFX);
                     currentState = GAMEOVER;
-
                 }
             }
 

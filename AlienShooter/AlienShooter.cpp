@@ -129,6 +129,11 @@ int main()
 
     vector<Enemy> enemies;
 
+    //wave presents
+    float waveCountdown = 3.0f;
+    bool countdownActive = true;
+
+
     // --- Spawn Wave ---
     auto spawnWave = [&](int wave)
         {
@@ -145,7 +150,7 @@ int main()
                 enemies.push_back(e);
             }
         };
-    spawnWave(currentWave);
+    /*spawnWave(currentWave);*/
 
     int score = 0;
 
@@ -215,16 +220,73 @@ int main()
 
         case GAMEPLAY:
         {
-            // Movement
+            float deltaTime = GetFrameTime();
+            Vector2 mousePos = GetMousePosition();
+            float angle = atan2(mousePos.y - guy.position.y, mousePos.x - guy.position.x);
+            float angleDegrees = angle * RAD2DEG;
+
+            // --- Pre-wave countdown ---
+            if (countdownActive)
+            {
+                waveCountdown -= deltaTime;
+
+                // Draw game elements so player can see enemies
+                BeginDrawing();
+                ClearBackground(BLACK);
+
+                // Background
+                Rectangle src = { 0, 0, (float)background.width, (float)background.height };
+                Rectangle dest = { 0, 0, 1200, 800 };
+                Vector2 bgOrigin = { 0, 0 };
+                DrawTexturePro(background, src, dest, bgOrigin, 0.0f, WHITE);
+
+                // Draw player
+                bool facingLeft = mousePos.x < guy.position.x;
+                Texture2D currentTexture = facingLeft ? chillGuyLeft : chillGuyRight;
+                float adjustedAngle = facingLeft ? angleDegrees + 180.0f : angleDegrees;
+                Rectangle srcRect = { 0, 0, (float)currentTexture.width, (float)currentTexture.height };
+                Vector2 origin = { currentTexture.width / 2.0f, currentTexture.height / 2.0f };
+                DrawTexturePro(currentTexture,
+                    srcRect,
+                    { guy.position.x, guy.position.y, (float)currentTexture.width, (float)currentTexture.height },
+                    origin,
+                    adjustedAngle,
+                    WHITE);
+
+                // Draw upcoming enemies as “preview” (optional: maybe semi-transparent)
+                for (auto& enemy : enemies)
+                {
+                    enemy.Draw(enemyTexture, guy.position);
+                    // Semi-transparent overlay to show they are “not active” yet
+                    DrawRectangleLines((int)enemy.hitbox.x, (int)enemy.hitbox.y, (int)enemy.hitbox.width, (int)enemy.hitbox.height, RED);
+                }
+
+                // Draw countdown number on top
+                DrawText(TextFormat("%.0f", ceil(waveCountdown)), 600, 400, 100, YELLOW);
+
+                EndDrawing();
+
+                if (waveCountdown <= 0.0f)
+                {
+                    countdownActive = false;
+                    waveInProgress = true;
+
+                    // Spawn the wave now that countdown is over
+                    spawnWave(currentWave);
+
+                    waveCountdown = 3.0f; // reset for next wave
+                }
+
+                continue; // Skip rest of gameplay until countdown finishes
+            }
+
+            // --- Player Movement ---
             if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))    guy.position.y -= speed * deltaTime;
             if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))  guy.position.y += speed * deltaTime;
             if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) guy.position.x += speed * deltaTime;
             if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))  guy.position.x -= speed * deltaTime;
 
-            Vector2 mousePos = GetMousePosition();
-            float angle = atan2(mousePos.y - guy.position.y, mousePos.x - guy.position.x);
-            float angleDegrees = angle * RAD2DEG;
-
+            // --- Shooting ---
             if (shootTimer > 0.0f) shootTimer -= deltaTime;
             if (shootTimer <= 0.0f && IsMouseButtonDown(MOUSE_LEFT_BUTTON))
             {
@@ -233,13 +295,13 @@ int main()
                 shootTimer = shootCooldown;
             }
 
-            // Wrap-around
+            // --- Screen Wrap ---
             if (guy.position.x < 0) guy.position.x = GetScreenWidth();
             if (guy.position.x > GetScreenWidth()) guy.position.x = 0;
             if (guy.position.y < 0) guy.position.y = GetScreenHeight();
             if (guy.position.y > GetScreenHeight()) guy.position.y = 0;
 
-            // Update bullets
+            // --- Update bullets ---
             for (size_t i = 0; i < bulletPositions.size(); ++i)
             {
                 bulletPositions[i].x += bulletVelocities[i].x * deltaTime;
@@ -257,8 +319,7 @@ int main()
                 }
             }
 
-            // Bullet-enemy collision
-           // Bullet-enemy collision (rectangle version)
+            // --- Bullet-enemy collision ---
             for (int i = bulletPositions.size() - 1; i >= 0; --i)
             {
                 bool hit = false;
@@ -281,82 +342,11 @@ int main()
                 }
             }
 
-
-            // Enemies move & check collision
-            for (auto& e : enemies)
-            {
-                e.MoveTowards(guy.position, deltaTime, enemySpeed);
-                if (CheckCollisionCircles(e.position, 25.0f, guy.position, 30.0f))
-                {
-                    PlaySound(playerDieSFX);
-                    currentState = GAMEOVER;
-                }
-            }
-
-            // Wave logic
-            if (enemies.empty() && waveTimer <= 0.0f && waveInProgress)
-            {
-                waveInProgress = false;
-                waveTimer = waveDelay;
-            }
-            if (!waveInProgress)
-            {
-                waveTimer -= deltaTime;
-                if (waveTimer <= 0.0f)
-                {
-                    currentWave++;
-                    spawnWave(currentWave);
-                    waveInProgress = true;
-                }
-            }
-
-            // Draw everything
-            BeginDrawing();
-            ClearBackground(BLACK);
-            Rectangle src = { 0, 0, (float)background.width, (float)background.height };
-            Rectangle dest = { 0, 0, 1200, 800 };
-            Vector2 bgOrigin = { 0, 0 };
-            DrawTexturePro(background, src, dest, bgOrigin, 0.0f, WHITE);
-            DrawText(TextFormat("Wave: %d", currentWave), 20, 20, 30, YELLOW);
-
-            // Determine facing direction
-            bool facingLeft = mousePos.x < guy.position.x;
-            Texture2D currentTexture = facingLeft ? chillGuyLeft : chillGuyRight;
-            float adjustedAngle = facingLeft ? angleDegrees + 180.0f : angleDegrees;
-
-            Rectangle srcRect = { 0, 0, (float)currentTexture.width, (float)currentTexture.height };
-            Vector2 origin = { currentTexture.width / 2.0f, currentTexture.height / 2.0f };
-
-            DrawTexturePro(currentTexture,
-                srcRect,
-                { guy.position.x, guy.position.y, (float)currentTexture.width, (float)currentTexture.height },
-                origin,
-                adjustedAngle,
-                WHITE);
-
-            // Draw bullets
-            for (auto& bullet : bulletPositions)
-            {
-                DrawCircleV(bullet, 5, RED);
-            }
-
-            // Draw Enemies
+            // --- Enemy movement & player collision ---
+            Rectangle playerRect = { guy.position.x - 30, guy.position.y - 30, 60, 60 };
             for (auto& enemy : enemies)
             {
-                enemy.Draw(enemyTexture, guy.position);
                 enemy.MoveTowards(guy.position, deltaTime, enemySpeed);
-
-                //// Debug: show hitbox
-                //DrawRectangleLines(
-                //    (int)enemy.hitbox.x,
-                //    (int)enemy.hitbox.y,
-                //    (int)enemy.hitbox.width,
-                //    (int)enemy.hitbox.height,
-                //    RED
-                //);
-
-                // Player collision check
-                Rectangle playerRect = { guy.position.x - 30, guy.position.y - 30, 60, 60 };
                 if (CheckCollisionRecs(playerRect, enemy.hitbox))
                 {
                     PlaySound(playerDieSFX);
@@ -364,9 +354,64 @@ int main()
                 }
             }
 
+            // --- Wave logic ---
+            if (enemies.empty() && waveTimer <= 0.0f && waveInProgress)
+            {
+                waveInProgress = false;
+                waveTimer = waveDelay; // delay before next wave
+            }
+            if (!waveInProgress && !countdownActive)
+            {
+                waveTimer -= deltaTime;
+                if (waveTimer <= 0.0f)
+                {
+                    countdownActive = true; // start countdown before next wave
+                    currentWave++;
+                }
+            }
+
+            // --- Draw everything ---
+            BeginDrawing();
+            ClearBackground(BLACK);
+
+            // Background
+            Rectangle src = { 0, 0, (float)background.width, (float)background.height };
+            Rectangle dest = { 0, 0, 1200, 800 };
+            Vector2 bgOrigin = { 0, 0 };
+            DrawTexturePro(background, src, dest, bgOrigin, 0.0f, WHITE);
+
+            // Wave and score
+            DrawText(TextFormat("Wave: %d", currentWave), 20, 20, 30, YELLOW);
+            DrawText(TextFormat("Score: %d", score), 20, 60, 30, WHITE);
+
+            // Player
+            bool facingLeft = mousePos.x < guy.position.x;
+            Texture2D currentTexture = facingLeft ? chillGuyLeft : chillGuyRight;
+            float adjustedAngle = facingLeft ? angleDegrees + 180.0f : angleDegrees;
+            Rectangle srcRect = { 0, 0, (float)currentTexture.width, (float)currentTexture.height };
+            Vector2 origin = { currentTexture.width / 2.0f, currentTexture.height / 2.0f };
+            DrawTexturePro(currentTexture,
+                srcRect,
+                { guy.position.x, guy.position.y, (float)currentTexture.width, (float)currentTexture.height },
+                origin,
+                adjustedAngle,
+                WHITE);
+
+            // Bullets
+            for (auto& bullet : bulletPositions)
+                DrawCircleV(bullet, 5, RED);
+
+            // Enemies
+            for (auto& enemy : enemies)
+                enemy.Draw(enemyTexture, guy.position);
+
+            // Optional: draw player hitbox for debugging
+            DrawRectangleLines((int)playerRect.x, (int)playerRect.y, (int)playerRect.width, (int)playerRect.height, BLUE);
+
             EndDrawing();
         }
         break;
+
 
         case GAMEOVER:
         {
@@ -393,9 +438,10 @@ int main()
                 enemies.clear();
                 currentWave = 1;
                 score = 0;
-                waveInProgress = true;
+                waveInProgress = false;    // make sure the game knows the wave hasn’t started
+                countdownActive = true;    // restart countdown
+                waveCountdown = 3.0f;      // reset countdown timer
                 waveTimer = 0.0f;
-                spawnWave(currentWave);
                 currentState = GAMEPLAY;
             }
             if (CheckCollisionPointRec(mouse, exitButton) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))

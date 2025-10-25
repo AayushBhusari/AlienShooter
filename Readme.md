@@ -4,6 +4,8 @@
 
 Skibiddi Shooter is a fast-paced 2D top-down shooter game built with **C++** and **Raylib**. Players control a character, dodge enemies, and shoot them down to survive waves of increasingly challenging enemies.
 
+## Play the game here: [Skibiddi Shooter on Itch.io](https://marshaldevs.itch.io/skibiddi-shooter)
+
 ---
 
 ## Features

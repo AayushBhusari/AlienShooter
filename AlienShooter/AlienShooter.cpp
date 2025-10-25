@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <vector>
 #include <raylib.h>
 #include "raymath.h"
@@ -19,6 +19,55 @@ public:
         bulletVelocities.push_back(Vector2Scale(direction, 500.0f));
     }
 };
+// Enemy Class
+//
+class Enemy {
+public:
+    Vector2 position;
+    float speed;
+    float scale = 0.3f;
+    Enemy(Texture2D& texture) {
+        position.x = static_cast<float>(GetRandomValue(100, GetScreenWidth() - 100));
+        position.y = static_cast<float>(GetRandomValue(100, GetScreenHeight() - 100));
+        speed = static_cast<float>(GetRandomValue(50, 150));
+    }
+
+    void Draw(Texture2D& texture, Vector2 playerPos) {
+        // Determine if the player is to the right of the enemy
+        bool facingRight = playerPos.x > position.x;
+
+        // Source rectangle: defines which part of the texture to draw
+        Rectangle sourceRec = { 0.0f, 0.0f, (float)texture.width, (float)texture.height };
+
+        // Flip horizontally if facing right (since texture faces left by default)
+        if (facingRight) {
+            sourceRec.width *= -1;
+        }
+
+        // Destination rectangle: where to draw on the screen and its size
+        Rectangle destRec = {
+            position.x,
+            position.y,
+            texture.width * scale,
+            texture.height * scale
+        };
+
+        // Origin: the center of the sprite (so flipping looks natural)
+        Vector2 origin = { texture.width * scale / 2, texture.height * scale / 2 };
+
+        // Draw the texture with flipping
+        DrawTexturePro(texture, sourceRec, destRec, origin, 0.0f, WHITE);
+    }
+
+
+    void MoveTowards(Vector2 target, float deltaTime, float moveSpeed) {
+        Vector2 direction = Vector2Normalize(Vector2Subtract(target, position));
+        position = Vector2Add(position, Vector2Scale(direction, moveSpeed * deltaTime));
+    }
+
+
+};
+
 
 int main() {
     InitWindow(1200, 800, "Skibiddi Shooter");
@@ -26,9 +75,19 @@ int main() {
     Guy guy;
     float speed = 200.0f;
 
+    float enemySpeed = 60.0f;
+
+
+    int currentWave = 1;
+    float waveDelay = 2.0f;
+    float waveTimer = 0.0f;
+    bool waveInProgress = true;
+
+
     // Load textures
     Texture2D chillGuyRight = LoadTexture("assets/shooting-right.png");
     Texture2D background = LoadTexture("assets/bg.png");
+    Texture2D enemyTexture = LoadTexture("assets/enemy.png");
 
     // Flip the right-facing image to create the left-facing one
     Image img = LoadImage("assets/shooting-right.png");
@@ -46,6 +105,22 @@ int main() {
 
     float shootCooldown = 0.3f;
     float shootTimer = 0.0f;
+
+   
+    // ------------------------
+ // Spawn Wave Function
+ // ------------------------
+    vector<Enemy> enemies;
+    auto spawnWave = [&](int wave) {
+        int enemyCount = 3 + wave * 2; // Increase number of enemies per wave
+        for (int i = 0; i < enemyCount; ++i) {
+            enemies.emplace_back(enemyTexture);
+        }
+        };
+
+    // Initial wave
+    spawnWave(currentWave);
+
 
     while (!WindowShouldClose()) {
         float deltaTime = GetFrameTime();
@@ -92,20 +167,57 @@ int main() {
             }
         }
 
-        // Drawing
+        // ------------------------
+        // Check Bullet-Enemy Collision & Remove
+        // ------------------------
+        for (int i = bulletPositions.size() - 1; i >= 0; --i) {
+            bool hit = false;
+            for (int j = enemies.size() - 1; j >= 0; --j) {
+                float enemyRadius = (enemyTexture.width * enemies[j].scale) / 2.5f;
+                if (CheckCollisionCircles(bulletPositions[i], 5.0f, enemies[j].position, enemyRadius)) {
+                    enemies.erase(enemies.begin() + j);  // Remove enemy
+                    hit = true;
+                    break;
+                }
+            }
+            if (hit) {
+                bulletPositions.erase(bulletPositions.begin() + i);
+                bulletVelocities.erase(bulletVelocities.begin() + i);
+            }
+        }
+
+        // ------------------------
+// Wave Check Logic
+// ------------------------
+        if (enemies.empty() && waveTimer <= 0.0f && waveInProgress) {
+            waveInProgress = false;
+            waveTimer = waveDelay;
+        }
+
+        if (!waveInProgress) {
+            waveTimer -= deltaTime;
+            if (waveTimer <= 0.0f) {
+                currentWave++;
+                spawnWave(currentWave);
+                waveInProgress = true;
+            }
+        }
+
+
+
+        // Draw everything
         BeginDrawing();
         ClearBackground(BLACK);
         Rectangle src = { 0, 0, (float)background.width, (float)background.height };
-        Rectangle dest = { 0, 0, 1200, 800 };  // Match your window size
+        Rectangle dest = { 0, 0, 1200, 800 };
         Vector2 bgOrigin = { 0, 0 };
-
         DrawTexturePro(background, src, dest, bgOrigin, 0.0f, WHITE);
+        DrawText(TextFormat("Wave: %d", currentWave), 20, 20, 30, YELLOW);
+
 
         // Determine facing direction
         bool facingLeft = mousePos.x < guy.position.x;
         Texture2D currentTexture = facingLeft ? chillGuyLeft : chillGuyRight;
-
-        // Adjust angle to prevent upside-down when facing left
         float adjustedAngle = facingLeft ? angleDegrees + 180.0f : angleDegrees;
 
         Rectangle srcRect = { 0, 0, (float)currentTexture.width, (float)currentTexture.height };
@@ -118,16 +230,31 @@ int main() {
             adjustedAngle,
             WHITE);
 
+        // Draw bullets
         for (auto& bullet : bulletPositions) {
             DrawCircleV(bullet, 5, RED);
         }
 
+        // ------------------------
+        // Draw Enemies
+        // ------------------------
+        for (auto& enemy : enemies) {
+            enemy.Draw(enemyTexture, guy.position);
+           enemy.MoveTowards(guy.position, deltaTime, enemySpeed);  // [NEW] Move enemy toward player
+            
+            DrawCircleLines((int)enemy.position.x, (int)enemy.position.y, 32.0f, GREEN);
+        }
+
+
+
         EndDrawing();
     }
 
+    // Unload resources
     UnloadTexture(chillGuyRight);
     UnloadTexture(chillGuyLeft);
     UnloadTexture(background);
+    UnloadTexture(enemyTexture);
 
     CloseWindow();
     return 0;

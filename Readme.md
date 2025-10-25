@@ -76,5 +76,3 @@ Skibiddi Shooter is a fast-paced 2D top-down shooter game built with **C++** and
 * Improve particle effects and visual polish
 
 ---
-
-```

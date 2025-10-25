@@ -3,18 +3,21 @@
 #include <raylib.h>
 #include "raymath.h"
 #include <cmath>
+const Color LIGHTGREEN = { 144, 238, 144, 255 }; // RGBA
+const Color DARKRED = { 139, 0, 0, 255 };
 using namespace std;
 
+// --- Classes ---
 class Guy
 {
 public:
-    Vector2 position = {600, 400};
+    Vector2 position = { 600, 400 };
 
-    void Shoot(float angle, vector<Vector2> &bulletPositions, vector<Vector2> &bulletVelocities)
+    void Shoot(float angle, vector<Vector2>& bulletPositions, vector<Vector2>& bulletVelocities)
     {
-        Vector2 direction = {cosf(angle), sinf(angle)};
+        Vector2 direction = { cosf(angle), sinf(angle) };
         float muzzleDistance = 50.0f;
-        Vector2 offset = {cosf(angle) * muzzleDistance, sinf(angle) * muzzleDistance};
+        Vector2 offset = { cosf(angle) * muzzleDistance, sinf(angle) * muzzleDistance };
 
         Vector2 bulletStart = Vector2Add(position, offset);
         bulletPositions.push_back(bulletStart);
@@ -28,20 +31,20 @@ public:
     Vector2 position;
     float speed;
     float scale = 0.3f;
-    Enemy(Texture2D &texture)
+    Enemy(Texture2D& texture)
     {
         position.x = static_cast<float>(GetRandomValue(100, GetScreenWidth() - 100));
         position.y = static_cast<float>(GetRandomValue(100, GetScreenHeight() - 100));
         speed = static_cast<float>(GetRandomValue(50, 150));
     }
 
-    void Draw(Texture2D &texture, Vector2 playerPos)
+    void Draw(Texture2D& texture, Vector2 playerPos)
     {
         // Determine if the player is to the right of the enemy
         bool facingRight = playerPos.x > position.x;
 
         // Source rectangle: defines which part of the texture to draw
-        Rectangle sourceRec = {0.0f, 0.0f, (float)texture.width, (float)texture.height};
+        Rectangle sourceRec = { 0.0f, 0.0f, (float)texture.width, (float)texture.height };
 
         // Flip horizontally if facing right (since texture faces left by default)
         if (facingRight)
@@ -54,10 +57,10 @@ public:
             position.x,
             position.y,
             texture.width * scale,
-            texture.height * scale};
+            texture.height * scale };
 
         // Origin: the center of the sprite (so flipping looks natural)
-        Vector2 origin = {texture.width * scale / 2, texture.height * scale / 2};
+        Vector2 origin = { texture.width * scale / 2, texture.height * scale / 2 };
 
         // Draw the texture with flipping
         DrawTexturePro(texture, sourceRec, destRec, origin, 0.0f, WHITE);
@@ -70,130 +73,137 @@ public:
     }
 };
 
-enum GameState
-{
-    MENU,
-    GAMEPLAY,
-    GAMEOVER,
-    EXIT
-};
+enum GameState { MENU, GAMEPLAY, GAMEOVER, EXIT };
 
 int main()
 {
+    // --- Window & Audio ---
     InitWindow(1200, 800, "Skibiddi Shooter");
     InitAudioDevice();
+
     GameState currentState = MENU;
-    Sound menuMusic = LoadSound("assets/menu-music.mp3");
-    PlaySound(menuMusic);
-    SetSoundVolume(menuMusic, 0.6f);
+    GameState previousState = EXIT;
 
-    Guy guy;
-    float speed = 200.0f;
-
-    float enemySpeed = 60.0f;
-
-    int currentWave = 1;
-    float waveDelay = 2.0f;
-    float waveTimer = 0.0f;
-    bool waveInProgress = true;
-
-    // Load textures
+    // --- Load Textures ---
     Texture2D chillGuyRight = LoadTexture("assets/shooting-right.png");
     Texture2D background = LoadTexture("assets/bg.png");
     Texture2D enemyTexture = LoadTexture("assets/enemy.png");
 
-    // Flip the right-facing image to create the left-facing one
+    // Flip right texture to create left
     Image img = LoadImage("assets/shooting-right.png");
     ImageFlipHorizontal(&img);
     Texture2D chillGuyLeft = LoadTextureFromImage(img);
     UnloadImage(img);
 
-    chillGuyRight.height = 120;
-    chillGuyRight.width = 120;
-    chillGuyLeft.height = 120;
-    chillGuyLeft.width = 120;
+    chillGuyRight.width = chillGuyRight.height = 120;
+    chillGuyLeft.width = chillGuyLeft.height = 120;
+
+    // --- Load Music & Sounds ---
+    Music menuMusic = LoadMusicStream("assets/menu-music.mp3");
+    Music bgMusic = LoadMusicStream("assets/game-bg.mp3");
+    Music gameOverMusic = LoadMusicStream("assets/game-over-music.mp3");
+    Sound shootSFX = LoadSound("assets/player-shoot.mp3");
+    Sound enemyDieSFX = LoadSound("assets/enemy-die.mp3");
+    Sound playerDieSFX = LoadSound("assets/player-die.mp3");
+
+    SetMusicVolume(menuMusic, 0.6f);
+    SetMusicVolume(bgMusic, 0.5f);
+    SetMusicVolume(gameOverMusic, 0.6f);
+
+    Guy guy;
+    float speed = 200.0f;
+    float enemySpeed = 60.0f;
+    int currentWave = 1;
+    float waveDelay = 2.0f;
+    float waveTimer = 0.0f;
+    bool waveInProgress = true;
 
     vector<Vector2> bulletPositions;
     vector<Vector2> bulletVelocities;
-
     float shootCooldown = 0.3f;
     float shootTimer = 0.0f;
 
-    // Spawn Wave Function
     vector<Enemy> enemies;
+
+    // --- Spawn Wave ---
     auto spawnWave = [&](int wave)
-    {
-        int enemyCount = 3 + wave * 2;   // Increase number of enemies per wave
-        float minSpawnDistance = 200.0f; // Minimum distance from player
-
-        for (int i = 0; i < enemyCount; ++i)
         {
-            Enemy enemy(enemyTexture);
-
-            // Keep generating a position until it's far enough from the player
-            while (Vector2Distance(enemy.position, guy.position) < minSpawnDistance)
+            int enemyCount = 3 + wave * 2;
+            float minDist = 200.0f;
+            for (int i = 0; i < enemyCount; ++i)
             {
-                enemy.position.x = static_cast<float>(GetRandomValue(100, GetScreenWidth() - 100));
-                enemy.position.y = static_cast<float>(GetRandomValue(100, GetScreenHeight() - 100));
+                Enemy e(enemyTexture);
+                while (Vector2Distance(e.position, guy.position) < minDist)
+                {
+                    e.position.x = static_cast<float>(GetRandomValue(100, GetScreenWidth() - 100));
+                    e.position.y = static_cast<float>(GetRandomValue(100, GetScreenHeight() - 100));
+                }
+                enemies.push_back(e);
             }
-
-            enemies.push_back(enemy);
-        }
-    };
-
-    // Initial wave
+        };
     spawnWave(currentWave);
 
-    Sound enemyDieSFX = LoadSound("assets/enemy-die.mp3");
-    Sound shootSFX = LoadSound("assets/player-shoot.mp3");
-    Sound playerDieSFX = LoadSound("assets/player-die.mp3");
-    Sound bgSound = LoadSound("assets/game-bg.mp3");
+    int score = 0;
 
-    SetSoundVolume(bgSound, 0.5f); // optional
-    PlaySound(bgSound);
-
-    while (!WindowShouldClose())
+    // --- Game Loop ---
+    while (!WindowShouldClose() && currentState != EXIT)
     {
         float deltaTime = GetFrameTime();
 
-        if (!IsSoundPlaying(menuMusic) && currentState == MENU)
-            PlaySound(menuMusic);
-        if (!IsSoundPlaying(bgSound) && currentState == GAMEPLAY)
-            PlaySound(bgSound);
+        // Update music streams for smooth playback
+        UpdateMusicStream(menuMusic);
+        UpdateMusicStream(bgMusic);
+        UpdateMusicStream(gameOverMusic);
 
+        // Handle music on state change
+        if (currentState != previousState)
+        {
+            switch (currentState)
+            {
+            case MENU:
+                StopMusicStream(bgMusic);
+                StopMusicStream(gameOverMusic);
+                if (!IsMusicStreamPlaying(menuMusic)) PlayMusicStream(menuMusic);
+                break;
+            case GAMEPLAY:
+                StopMusicStream(menuMusic);
+                StopMusicStream(gameOverMusic);
+                if (!IsMusicStreamPlaying(bgMusic)) PlayMusicStream(bgMusic);
+                break;
+            case GAMEOVER:
+                StopMusicStream(menuMusic);
+                StopMusicStream(bgMusic);
+                if (!IsMusicStreamPlaying(gameOverMusic)) PlayMusicStream(gameOverMusic);
+                break;
+            case EXIT:
+                StopMusicStream(menuMusic);
+                StopMusicStream(bgMusic);
+                StopMusicStream(gameOverMusic);
+                break;
+            }
+            previousState = currentState;
+        }
+
+        // --- State Handling ---
         switch (currentState)
         {
         case MENU:
         {
             BeginDrawing();
             ClearBackground(DARKBLUE);
-
-            // Title
             DrawText("SKIBIDDI SHOOTER", 400, 200, 50, YELLOW);
-
-            // Buttons
-            Rectangle playButton = {500, 350, 200, 60};
-            Rectangle exitButton = {500, 450, 200, 60};
-
+            Rectangle playButton = { 500, 350, 200, 60 };
+            Rectangle exitButton = { 500, 450, 200, 60 };
             DrawRectangleRec(playButton, LIGHTGRAY);
             DrawRectangleRec(exitButton, LIGHTGRAY);
-
             DrawText("PLAY", playButton.x + 60, playButton.y + 15, 30, BLACK);
             DrawText("EXIT", exitButton.x + 70, exitButton.y + 15, 30, BLACK);
 
-            // Handle clicks
             Vector2 mouse = GetMousePosition();
-
             if (CheckCollisionPointRec(mouse, playButton) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-            {
-                StopSound(menuMusic); // stop menu music
-                PlaySound(bgSound);   // play background gameplay sound
                 currentState = GAMEPLAY;
-            }
             if (CheckCollisionPointRec(mouse, exitButton) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-            {
                 currentState = EXIT;
-            }
 
             EndDrawing();
         }
@@ -201,29 +211,17 @@ int main()
 
         case GAMEPLAY:
         {
-            float deltaTime = GetFrameTime();
-
             // Movement
-            if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
-                guy.position.y -= speed * deltaTime;
-            if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
-                guy.position.y += speed * deltaTime;
-            if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
-                guy.position.x += speed * deltaTime;
-            if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
-                guy.position.x -= speed * deltaTime;
+            if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))    guy.position.y -= speed * deltaTime;
+            if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))  guy.position.y += speed * deltaTime;
+            if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D)) guy.position.x += speed * deltaTime;
+            if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))  guy.position.x -= speed * deltaTime;
 
             Vector2 mousePos = GetMousePosition();
             float angle = atan2(mousePos.y - guy.position.y, mousePos.x - guy.position.x);
             float angleDegrees = angle * RAD2DEG;
 
-            // Update cooldown timer
-            if (shootTimer > 0.0f)
-            {
-                shootTimer -= deltaTime;
-            }
-
-            // Shooting
+            if (shootTimer > 0.0f) shootTimer -= deltaTime;
             if (shootTimer <= 0.0f && IsMouseButtonDown(MOUSE_LEFT_BUTTON))
             {
                 guy.Shoot(angle, bulletPositions, bulletVelocities);
@@ -232,14 +230,10 @@ int main()
             }
 
             // Wrap-around
-            if (guy.position.x < 0)
-                guy.position.x = GetScreenWidth();
-            if (guy.position.x > GetScreenWidth())
-                guy.position.x = 0;
-            if (guy.position.y < 0)
-                guy.position.y = GetScreenHeight();
-            if (guy.position.y > GetScreenHeight())
-                guy.position.y = 0;
+            if (guy.position.x < 0) guy.position.x = GetScreenWidth();
+            if (guy.position.x > GetScreenWidth()) guy.position.x = 0;
+            if (guy.position.y < 0) guy.position.y = GetScreenHeight();
+            if (guy.position.y > GetScreenHeight()) guy.position.y = 0;
 
             // Update bullets
             for (size_t i = 0; i < bulletPositions.size(); ++i)
@@ -259,30 +253,18 @@ int main()
                 }
             }
 
-            // Check Bullet-Enemy Collision & Remove
+            // Bullet-enemy collision
             for (int i = bulletPositions.size() - 1; i >= 0; --i)
             {
                 bool hit = false;
                 for (int j = enemies.size() - 1; j >= 0; --j)
                 {
                     float enemyRadius = (enemyTexture.width * enemies[j].scale) / 2.5f;
-
                     if (CheckCollisionCircles(bulletPositions[i], 5.0f, enemies[j].position, enemyRadius))
                     {
-                        // Play sound
                         PlaySound(enemyDieSFX);
-
-                        // Add particle burst (simple visual effect)
-                        for (int k = 0; k < 10; ++k)
-                        {
-                            Vector2 particlePos = enemies[j].position;
-                            Vector2 velocity = {
-                                (float)GetRandomValue(-100, 100) / 100.0f,
-                                (float)GetRandomValue(-100, 100) / 100.0f};
-                            DrawCircleV(Vector2Add(particlePos, Vector2Scale(velocity, 20)), 3, ORANGE);
-                        }
-
-                        enemies.erase(enemies.begin() + j); // Remove enemy
+                        score++;
+                        enemies.erase(enemies.begin() + j);
                         hit = true;
                         break;
                     }
@@ -294,13 +276,23 @@ int main()
                 }
             }
 
-            // Wave Check Logic
+            // Enemies move & check collision
+            for (auto& e : enemies)
+            {
+                e.MoveTowards(guy.position, deltaTime, enemySpeed);
+                if (CheckCollisionCircles(e.position, 25.0f, guy.position, 30.0f))
+                {
+                    PlaySound(playerDieSFX);
+                    currentState = GAMEOVER;
+                }
+            }
+
+            // Wave logic
             if (enemies.empty() && waveTimer <= 0.0f && waveInProgress)
             {
                 waveInProgress = false;
                 waveTimer = waveDelay;
             }
-
             if (!waveInProgress)
             {
                 waveTimer -= deltaTime;
@@ -315,9 +307,9 @@ int main()
             // Draw everything
             BeginDrawing();
             ClearBackground(BLACK);
-            Rectangle src = {0, 0, (float)background.width, (float)background.height};
-            Rectangle dest = {0, 0, 1200, 800};
-            Vector2 bgOrigin = {0, 0};
+            Rectangle src = { 0, 0, (float)background.width, (float)background.height };
+            Rectangle dest = { 0, 0, 1200, 800 };
+            Vector2 bgOrigin = { 0, 0 };
             DrawTexturePro(background, src, dest, bgOrigin, 0.0f, WHITE);
             DrawText(TextFormat("Wave: %d", currentWave), 20, 20, 30, YELLOW);
 
@@ -326,24 +318,24 @@ int main()
             Texture2D currentTexture = facingLeft ? chillGuyLeft : chillGuyRight;
             float adjustedAngle = facingLeft ? angleDegrees + 180.0f : angleDegrees;
 
-            Rectangle srcRect = {0, 0, (float)currentTexture.width, (float)currentTexture.height};
-            Vector2 origin = {currentTexture.width / 2.0f, currentTexture.height / 2.0f};
+            Rectangle srcRect = { 0, 0, (float)currentTexture.width, (float)currentTexture.height };
+            Vector2 origin = { currentTexture.width / 2.0f, currentTexture.height / 2.0f };
 
             DrawTexturePro(currentTexture,
-                           srcRect,
-                           {guy.position.x, guy.position.y, (float)currentTexture.width, (float)currentTexture.height},
-                           origin,
-                           adjustedAngle,
-                           WHITE);
+                srcRect,
+                { guy.position.x, guy.position.y, (float)currentTexture.width, (float)currentTexture.height },
+                origin,
+                adjustedAngle,
+                WHITE);
 
             // Draw bullets
-            for (auto &bullet : bulletPositions)
+            for (auto& bullet : bulletPositions)
             {
                 DrawCircleV(bullet, 5, RED);
             }
 
             // Draw Enemies
-            for (auto &enemy : enemies)
+            for (auto& enemy : enemies)
             {
                 enemy.Draw(enemyTexture, guy.position);
                 enemy.MoveTowards(guy.position, deltaTime, enemySpeed);
@@ -354,13 +346,8 @@ int main()
                 if (CheckCollisionCircles(enemy.position, 25.0f, guy.position, 30.0f))
                 {
                     PlaySound(playerDieSFX);
-                    currentState = MENU;
-                    StopSound(bgSound);
-                    PlaySound(menuMusic);
-                    enemies.clear();
-                    bulletPositions.clear();
-                    currentWave = 1;
-                    spawnWave(currentWave);
+                    currentState = GAMEOVER;
+
                 }
             }
 
@@ -368,31 +355,68 @@ int main()
         }
         break;
 
-        case EXIT:
+        case GAMEOVER:
         {
-            /*// Stop audio if needed
-            StopSound(bgSound);
-            StopSound(menuMusic);
-            // Exit the loop safely
-            CloseWindow();
-            CloseAudioDevice();*/
-            currentState = EXIT;
+            BeginDrawing();
+            ClearBackground(DARKRED);
+
+            DrawText("GAME OVER", 450, 200, 60, YELLOW);
+            DrawText(TextFormat("Final Score: %d", score), 500, 300, 40, WHITE);
+
+            Rectangle restartButton = { 450, 400, 300, 60 };
+            Rectangle exitButton = { 450, 500, 300, 60 };
+
+            DrawRectangleRec(restartButton, LIGHTGRAY);
+            DrawRectangleRec(exitButton, LIGHTGRAY);
+            DrawText("RESTART", restartButton.x + 60, restartButton.y + 15, 30, BLACK);
+            DrawText("EXIT", exitButton.x + 100, exitButton.y + 15, 30, BLACK);
+
+            Vector2 mouse = GetMousePosition();
+            if (CheckCollisionPointRec(mouse, restartButton) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+            {
+                guy.position = { 600, 400 };
+                bulletPositions.clear();
+                bulletVelocities.clear();
+                enemies.clear();
+                currentWave = 1;
+                score = 0;
+                waveInProgress = true;
+                waveTimer = 0.0f;
+                spawnWave(currentWave);
+                currentState = GAMEPLAY;
+            }
+            if (CheckCollisionPointRec(mouse, exitButton) && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
+                currentState = EXIT;
+
+            EndDrawing();
         }
         break;
+
+        case EXIT:
+            break;
         }
     }
-    // AFTER the loop ends:
+
+    // --- Unload everything ---
     UnloadTexture(chillGuyRight);
     UnloadTexture(chillGuyLeft);
     UnloadTexture(background);
     UnloadTexture(enemyTexture);
 
-    UnloadSound(enemyDieSFX);
     UnloadSound(shootSFX);
+    UnloadSound(enemyDieSFX);
     UnloadSound(playerDieSFX);
-    UnloadSound(bgSound);
-    UnloadSound(menuMusic);
+
+    StopMusicStream(menuMusic);
+    StopMusicStream(bgMusic);
+    StopMusicStream(gameOverMusic);
+
+    UnloadMusicStream(menuMusic);
+    UnloadMusicStream(bgMusic);
+    UnloadMusicStream(gameOverMusic);
+
+    CloseAudioDevice();
+    CloseWindow();
 
     return 0;
 }
-

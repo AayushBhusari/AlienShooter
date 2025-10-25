@@ -125,6 +125,9 @@
   <ItemGroup>
     <ClCompile Include="AlienShooter.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="bruh.txt" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
